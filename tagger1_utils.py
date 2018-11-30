@@ -1,3 +1,5 @@
+import numpy as np
+
 STUDENT={'name': 'Daniel Greenspan_Eilon Bashari',
          'ID': '308243948_308576933'}
 
@@ -6,7 +8,7 @@ vocabFile = "samples/vocab_sample.txt"
 START_STR, END_STR, UNK = "SSSTARTTT", "EEENDDD", "UUUNKKK"
 START_W_TAG, END_W_TAG = (START_STR, START_STR), (END_STR, END_STR)
 
-WORD_TO_VEC = {word.strip():vector.strip().split(" ") for word, vector in zip(open(vocabFile), open(wordVecotrFile))}
+WORD_TO_VEC = {word.strip():np.asanyarray(vector.strip().split(" ")) for word, vector in zip(open(vocabFile), open(wordVecotrFile))}
 TAGS, WORDS = set(), set()
 T2I, I2T, W2I, I2W = dict(), dict(), dict(), dict()
 
@@ -106,14 +108,3 @@ def index_window(window):
         indexes.append(words_index(w))
     return indexes
 
-
-if __name__ == '__main__':
-    for i in range(5):
-        print WORD_TO_VEC.items()[i]
-    fname = "samples/train_sample.txt"
-    sentences = read_data(fname)
-    initialize_indexes()
-    windows = create_windows(sentences, windows_length=2)
-    for win in windows:
-        words, tags = tagged_window_to_words_and_tags(win)
-        print " ".join(words), " ### " , " ".join(tags)

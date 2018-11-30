@@ -60,6 +60,7 @@ NOUT = 10  # size of labels
 #     return i2l[np.argmax(vals)]
 #
 
+
 class MLP(object):
     def __init__(self, model, in_dim, hid_dim, out_dim, non_lin=dy.tanh):
         self._W1 = model.add_parameters((hid_dim, in_dim))
@@ -68,13 +69,18 @@ class MLP(object):
         self._b2 = model.add_parameters(out_dim)
         self.non_lin = non_lin
 
-    def __call__(self, in_exp):
+    def __call__(self, in_exp, softmax=True):
         W1 = dy.parameter(self._W1)
         b1 = dy.parameter(self._b1)
         W2 = dy.parameter(self._W2)
         b2 = dy.parameter(self._b2)
         g = self.non_lin
-        return W2*g(W1*in_exp + b1) + b2
+        exp = W2*g(W1*in_exp + b1) + b2
+        exp = self.call_softmax(exp) if softmax else exp
+        return exp
+
+    def call_softmax(self, expression):
+        return dy.softmax(expression)
 
 
 class Module(dy.Model):
@@ -82,7 +88,6 @@ class Module(dy.Model):
 
 
 
-dy.Expression
 class NNGraph(dy.ComputationGraph):
     def __init__(self):
         super(NNGraph, self).__init__()

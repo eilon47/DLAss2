@@ -3,8 +3,8 @@ import numpy as np
 STUDENT={'name': 'Daniel Greenspan_Eilon Bashari',
          'ID': '308243948_308576933'}
 
-wordVecotrFile = "samples/wordVectors_sample.txt"
-vocabFile = "samples/vocab_sample.txt"
+wordVecotrFile = "wordVectors.txt"
+vocabFile = "vocab.txt"
 START_STR, END_STR, UNK = "SSSTARTTT", "EEENDDD", "UUUNKKK"
 START_W_TAG, END_W_TAG = (START_STR, START_STR), (END_STR, END_STR)
 
@@ -79,17 +79,37 @@ def pad_sentence(sentence, window_length):
     return padded
 
 
-def create_windows(sentences, windows_length=2):
+def create_windows(sentences, windows_length=2, with_tags=True):
+    if with_tags:
+        initialize_indexes()
     windows = []
+    mid_tags = []
     js = range(-windows_length, windows_length+1)
     for sentence in sentences:
         padded = pad_sentence(sentence, windows_length)
         for i in range(windows_length, len(padded)-(windows_length)):
             window = []
+            word, tag = padded[i]
             for j in js:
                 offset = i + j
                 window.append(padded[offset])
-            windows.append(window)
+            windows.append(index_window(window))
+            mid_tags.append(tag)
+
+    return windows, mid_tags
+
+
+def create_windows_without_tags(sentences, windows_length=2):
+    windows = []
+    js = range(-windows_length, windows_length + 1)
+    for sentence in sentences:
+        padded = pad_sentence(sentence, windows_length)
+        for i in range(windows_length, len(padded) - (windows_length)):
+            window = []
+            for j in js:
+                offset = i + j
+                window.append(padded[offset])
+            windows.append(index_window(window))
     return windows
 
 
@@ -108,3 +128,10 @@ def index_window(window):
         indexes.append(words_index(w))
     return indexes
 
+
+if __name__ == '__main__':
+    data = read_data("samples/train_sample.txt")
+    initialize_indexes()
+    win, tags = create_windows(data)
+    for w in win:
+        print  w

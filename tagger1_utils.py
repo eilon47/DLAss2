@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.legend_handler import HandlerLine2D
 
 STUDENT={'name': 'Daniel Greenspan_Eilon Bashari',
          'ID': '308243948_308576933'}
@@ -113,6 +115,7 @@ def index_window(window, is_tagged=True):
             indexes.append(words_index(w))
     return indexes
 
+
 def words_index(word):
     try:
         index = W2I[word]
@@ -126,6 +129,13 @@ def tags_index(tag):
     return index
 
 
+def from_index_to_tag(index):
+    if isinstance(index, int):
+        return I2T[index]
+    if isinstance(index, list):
+        return [I2T[i] for i in index]
+
+
 def pad_sentence(sentence, window_length, is_tagged=True):
     S_PAD = START_W_TAG if is_tagged else START_STR
     E_PAD = END_W_TAG if is_tagged else END_STR
@@ -137,6 +147,13 @@ def pad_sentence(sentence, window_length, is_tagged=True):
         padded.append(E_PAD)
     return padded
 
+
+def plot_graph(plot_values, color, label):
+    line1, = plt.plot(plot_values.keys(), plot_values.values(), color,
+                      label=label)
+    # drawing name of the graphs
+    plt.legend(handler_map={line1: HandlerLine2D(numpoints=4)})
+    plt.show()
 
 
 

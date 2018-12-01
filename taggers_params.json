@@ -1,0 +1,15 @@
+{
+  "pos": {
+    "LR": 0.01,
+    "EPOCHS": 3,
+    "BATCH": 1024,
+    "SEPARATOR": " "
+
+  },
+  "ner": {
+    "LR": 0.05,
+    "EPOCHS": 4,
+    "BATCH": 1024,
+    "SEPARATOR": "\t"
+  }
+}

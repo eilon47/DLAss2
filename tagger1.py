@@ -1,12 +1,12 @@
+import json
+import os
+
 import numpy as np
 import torch
 import sys
 import tagger1_utils as utils
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
-from torchvision import datasets, transforms
-
-from torch.utils.data.sampler import SubsetRandomSampler
 import torch.nn.functional as functional
 import torch.optim as optim
 
@@ -17,9 +17,7 @@ HID = 100
 BATCH = 1024
 EPOCHS = 3
 LR = 0.01
-SEPERATORS = {"ner":"\t", "pos":" "}
-
-
+SEPARATOR = ""
 
 class Trainer(object):
     def __init__(self, train, dev, test, model, optimizer, tags_type):
@@ -31,25 +29,27 @@ class Trainer(object):
         self.tags_type = tags_type
 
     def run(self):
-        avg_train_loss_per_epoch_dict = {}
-        avg_validation_loss_per_epoch_dict = {}
-        validation_accuracy_per_epoch_dict = {}
+        dev_avg_loss_in_epoch = {}
+        dev_acc_per_epoch = {}
         for epoch in range(1, EPOCHS + 1):
-            print str(epoch)
-            self.train(epoch, avg_train_loss_per_epoch_dict)
-            self.dev(epoch, avg_validation_loss_per_epoch_dict,
-                            validation_accuracy_per_epoch_dict, self.tags_type)
-        #plotTrainAndValidationGraphs(avg_validation_loss_per_epoch_dict, validation_accuracy_per_epoch_dict)
-        self.test(self.tags_type)
+            print "epoch #{}".format(epoch)
 
-    def train(self, epoch, avg_train_loss_per_epoch_dict):
-        """
-        go through all examples on the validation set, calculates perdiction, loss
-        , accuracy, and updating the model parameters.
-        :param epoch: number of epochs
-        :param avg_train_loss_per_epoch_dict: avg loss per epoch dictionary
-        :return: None
-        """
+            train_loss, correct_train, total_train, train_acc = self.train()
+            print "Train: average train loss is {:.4f}, accuracy is {} of {}, {:.00f}%".format(train_loss, correct_train,
+                                                                                               total_train, train_acc)
+
+            dev_loss, dev_correct, dev_total, dev_accuracy = self.dev(self.tags_type)
+            dev_acc_per_epoch[epoch] = dev_accuracy
+            dev_avg_loss_in_epoch[epoch] = dev_loss
+            print "Dev: average dev loss is {:.4f}, accuracy is {} of {}, {:.00f}%".format(dev_loss,
+                                                                                dev_correct, dev_total, dev_accuracy)
+
+        utils.plot_graph(dev_avg_loss_in_epoch, color="blue", label="Average loss for epoch")
+        utils.plot_graph(dev_acc_per_epoch, color="red", label="Accuracy for epoch")
+        tags_predict = self.test(self.tags_type)
+        return tags_predict
+
+    def train(self):
         self.model.train()
         train_loss = 0
         correct = 0
@@ -59,31 +59,17 @@ class Trainer(object):
             output = self.model(data)
             pred = output.data.max(1, keepdim=True)[1]
             correct += pred.eq(labels.data.view_as(pred)).cpu().sum().item()
-            # negative log likelihood loss
             loss = functional.nll_loss(output, labels)
             train_loss += loss
-            # calculating gradients
             loss.backward()
-            # updating parameters
             self.optimizer.step()
 
         train_loss /= (len(self.train_loader))
-        avg_train_loss_per_epoch_dict[epoch] = train_loss
-        print("Epoch: {} Train set: Average loss: {:.4f}, Accuracy: {}/{} ({:.00f}%)".format(epoch, train_loss, correct,
-                                                                                             len(
-                                                                                                 self.train_loader) * BATCH,
-                                                                                             100. * correct / (len(
-                                                                                                 self.train_loader) * BATCH)))
+        total = len(self.train_loader) * BATCH
+        acc = (100. * correct) / total
+        return train_loss, correct, total, acc
 
-    def dev(self, epoch_num, avg_validation_loss_per_epoch_dict,
-                   validation_accuracy_per_epoch_dict, tagger_type):
-        """
-        go through all examples on the validation set, calculates perdiction, loss
-        and accuracy
-        :param epoch: number of epochs
-        :param avg_train_loss_per_epoch_dict: avg loss per epoch dictionary
-        :return: None
-        """
+    def dev(self, tagger_type):
         self.model.eval()
         validation_loss = 0
         correct = 0
@@ -101,55 +87,18 @@ class Trainer(object):
                 correct += pred.eq(target.data.view_as(pred)).cpu().sum().item()
 
         validation_loss /= len(self.dev_loader)
-        avg_validation_loss_per_epoch_dict[epoch_num] = validation_loss
-        accuracy = 100. * correct / total
-        validation_accuracy_per_epoch_dict[epoch_num] = accuracy
-
-        print('\n Epoch:{} Validation set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-            epoch_num, validation_loss, correct, total,
-            accuracy))
+        accuracy = (100. * correct) / total
+        return validation_loss, correct, total, accuracy
 
     def test(self, tagger_type):
-        """
-        writes all the model predictions on the test set to test.pred file.
-        :return:  None
-        """
         self.model.eval()
-        pred_list = []
+        tags_predict = []
         for data in self.test_loader:
             output = self.model(torch.LongTensor(data))
-            # get the predicted class out of output tensor
             pred = output.data.max(1, keepdim=True)[1]
-            # add current prediction to predictions list
-            pred_list.append(pred.item())
-
-        pred_list = self.convert_tags_indices_to_tags(pred_list)
-        self.write_test_results_file(tagger_type + "/test", "test1." + tagger_type, pred_list)
-
-    def convert_tags_indices_to_tags(self, tags_indices_list):
-        """
-        Converts list of tags indices to tags list (string representation).
-        :param tags_indices_list: tags indices list
-        :return: tags list (string representation)
-        """
-        return [utils.I2T[index] for index in tags_indices_list]
-
-    def write_test_results_file(self, test_file_name, output_file_name, predictions_list):
-        """
-        writes test predictions to output file.
-        :param test_file_name: test file name
-        :param output_file_name: output file name
-        :param predictions_list: predictions for every word in the test data.
-        """
-        with open(test_file_name, 'r') as test_file, open(output_file_name, 'w') as output:
-            content = test_file.readlines()
-            i = 0
-            for line in content:
-                if line == '\n':
-                    output.write(line)
-                else:
-                    output.write(line.strip('\n') + " " + predictions_list[i] + "\n")
-                    i += 1
+            tags_predict.append(pred.item())
+        tags_predict = utils.from_index_to_tag(tags_predict)
+        return tags_predict
 
 
 class ComputationGraph(nn.Module):
@@ -191,26 +140,49 @@ def get_loader_for_test(data_file):
     return windows
 
 
+def write_result(input_test_path, output_path, tags):
+    print "Writing result"
+    out_fd = open(output_path, 'w')
+    in_fd = open(input_test_path, 'r')
+    tags_index = 0
+    for line in in_fd:
+        if line == '\n':
+            out_fd.write(line)
+        else:
+            out_fd.write("{}{}{}\n".format(line.strip(),SEPARATOR, tags[tags_index]))
+            tags_index += 1
+
+
 def routine(tags_type):
-    if tags_type == 'ner':
-        global LR
-        LR = 0.05
     train_file, dev_file, test_file = tags_type + "/" + "train", tags_type + "/" + "dev", tags_type + "/" + "test"
     # Create loaders
-    train = get_data_as_windows(train_file, seperator=SEPERATORS[tags_type])
-    dev = get_data_as_windows(dev_file, is_train=False, seperator=SEPERATORS[tags_type])
+    train = get_data_as_windows(train_file, seperator=SEPARATOR)
+    dev = get_data_as_windows(dev_file, is_train=False, seperator=SEPARATOR)
     test = get_loader_for_test(test_file)
 
     model = ComputationGraph()
     optimizer = optim.Adam(model.parameters(), lr=LR)
-
     trainer = Trainer(train, dev, test, model, optimizer, tags_type)
-    trainer.run()
+    tags_predict = trainer.run()
+    write_result(test_file, "test1."+tags_type, tags_predict)
+
+
+def initialize_globals(tags_type):
+    config_fd = open("taggers_params.json", "r")
+    data = json.load(config_fd)
+    config_fd.close()
+    config = data[tags_type]
+    global LR, EPOCHS, BATCH, SEPARATOR
+    SEPARATOR = config["SEPARATOR"]
+    LR = config["LR"]
+    BATCH = config["BATCH"]
+    EPOCHS = config["EPOCHS"]
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         exit(-1)
     else:
         tags_type = sys.argv[1]
+        initialize_globals(tags_type)
         routine(tags_type)
 

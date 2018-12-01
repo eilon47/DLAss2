@@ -13,11 +13,11 @@ import torch.optim as optim
 EMBEDDING_ROW_LENGTH = 50
 WINDOWS_SIZE = 5
 EDIM = WINDOWS_SIZE * EMBEDDING_ROW_LENGTH
-HID = 10
-NOUT = 10  # size of labels
+HID = 100
 BATCH = 1024
 EPOCHS = 3
-
+LR = 0.01
+SEPERATORS = {"ner":"\t", "pos":" "}
 
 
 
@@ -60,7 +60,7 @@ class Trainer(object):
             pred = output.data.max(1, keepdim=True)[1]
             correct += pred.eq(labels.data.view_as(pred)).cpu().sum().item()
             # negative log likelihood loss
-            loss = F.nll_loss(output, labels)
+            loss = functional.nll_loss(output, labels)
             train_loss += loss
             # calculating gradients
             loss.backward()
@@ -163,15 +163,17 @@ class ComputationGraph(nn.Module):
 
     def forward(self, x):
         x = self.E(x).view(-1, self.input_size)
-        x = functional.tanh(self.layer0(x))
+        x = torch.tanh(self.layer0(x))
         x = self.layer1(x)
         return functional.log_softmax(x, dim=1)
 
 
 # For train and dev
-def get_data_as_windows(data_file, is_train=True):
+def get_data_as_windows(data_file, is_train=True, seperator=" "):
     print "Getting data from: ", data_file
-    sentences = utils.read_data(data_file, is_train=True)
+    sentences = utils.read_data(data_file, is_train=True, seperator=seperator)
+    if is_train:
+        utils.initialize_indexes()
     windows, tags = utils.create_windows(sentences)
     windows, tags = np.asarray(windows, np.float32), np.asarray(tags, np.int32)
     windows, tags = torch.from_numpy(windows), torch.from_numpy(tags)
@@ -190,12 +192,18 @@ def get_loader_for_test(data_file):
 
 
 def routine(tags_type):
+    if tags_type == 'ner':
+        global LR
+        LR = 0.05
     train_file, dev_file, test_file = tags_type + "/" + "train", tags_type + "/" + "dev", tags_type + "/" + "test"
-    train = get_data_as_windows(train_file)
-    dev = get_data_as_windows(dev_file, is_train=False)
+    # Create loaders
+    train = get_data_as_windows(train_file, seperator=SEPERATORS[tags_type])
+    dev = get_data_as_windows(dev_file, is_train=False, seperator=SEPERATORS[tags_type])
     test = get_loader_for_test(test_file)
+
     model = ComputationGraph()
-    optimizer = optim.Adam(model.parameters())
+    optimizer = optim.Adam(model.parameters(), lr=LR)
+
     trainer = Trainer(train, dev, test, model, optimizer, tags_type)
     trainer.run()
 

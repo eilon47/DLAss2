@@ -10,9 +10,16 @@ wordVecotrFile = "wordVectors.txt"
 vocabFile = "vocab.txt"
 START_STR, END_STR, UNK = "SSSTARTTT", "EEENDDD", "UUUNKKK"
 START_W_TAG, END_W_TAG = (START_STR, START_STR), (END_STR, END_STR)
-WORD_TO_VEC = {word.strip():vector for word, vector in zip(open(vocabFile),np.loadtxt(wordVecotrFile))}
+E = np.loadtxt(wordVecotrFile)
+WORD_TO_VEC = {word.strip():vector for word, vector in zip(open(vocabFile), E)}
 TAGS, WORDS = set(), set()
 T2I, I2T, W2I, I2W = dict(), dict(), dict(), dict()
+is_pre_trained = False
+
+
+def set_pre_trained(value):
+    global is_pre_trained
+    is_pre_trained = value
 
 
 def read_data(fname, tagged_data=True, is_train=True, seperator=" "):
@@ -35,12 +42,16 @@ def read_data(fname, tagged_data=True, is_train=True, seperator=" "):
                 data.append(" ".join(sentence))
                 sentence = []
                 continue
+            if is_pre_trained:
+                line = line.lower()
             sentence.append(line.strip())
         return data
     # For tagged data
     global TAGS, WORDS
     for line in file(fname):
         try:
+            if is_pre_trained:
+                line = line.lower()
             word, label = line.strip().split(seperator,1)
             sentence.append((word, label))
             if is_train:

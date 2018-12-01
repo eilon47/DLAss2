@@ -7,7 +7,7 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 import torch.nn.functional as functional
 import torch.optim as optim
-
+from optparse import OptionParser
 STUDENT={'name': 'Daniel Greenspan_Eilon Bashari',
          'ID': '308243948_308576933'}
 
@@ -19,7 +19,14 @@ HID = 100
 BATCH = 1024
 EPOCHS = 3
 LR = 0.01
-SEPARATOR = ""
+SEPARATOR = " "
+PRE_TRAINED_EDIM = WINDOWS_SIZE * utils.E.shape[1]
+
+option_parser = OptionParser()
+option_parser.add_option("-t", "--type", dest="type", help="Choose the type of the tagger", default="pos")
+option_parser.add_option("-e", "--embedding", help="if you want to use the pre trained embedding layer", dest="E", default=False, action="store_true")
+# option_parser.add_option("-c", "--config", help="do not take the configuration from the json file", dest="config", default=True, action="store_false")
+
 
 
 class Trainer(object):
@@ -138,12 +145,18 @@ class ComputationGraph(nn.Module):
     """
     Computation graph for neural network
     """
-    def __init__(self):
+    def __init__(self, is_pre_trained):
         super(ComputationGraph, self).__init__()
+        if not is_pre_trained:
+            self.E = nn.Embedding(len(utils.WORDS), EMBEDDING_ROW_LENGTH)
+            self.input_size = EDIM
+        else:
+            print "Using pre trained embedding layer"
+            self.E = nn.Embedding(utils.E.shape[0], utils.E.shape[1])
+            self.E.weight.data.copy_(torch.from_numpy(utils.E))
+            self.input_size = PRE_TRAINED_EDIM
 
-        self.E = nn.Embedding(len(utils.WORDS), EMBEDDING_ROW_LENGTH)
-        self.input_size = EDIM
-        self.layer0 = nn.Linear(EDIM, HID)
+        self.layer0 = nn.Linear(self.input_size, HID)
         self.layer1 = nn.Linear(HID, len(utils.TAGS))
 
     def forward(self, x):
@@ -208,19 +221,22 @@ def write_result(input_test_path, output_path, tags):
             tags_index += 1
 
 
-def routine(tags_type):
+def routine(options):
     """
     routine of this app creating the parameters for the trainer and runs it.
     :param tags_type:
     :return:
     """
+    tags_type = options.type
+    is_pre_trained = options.E
+    initialize_globals(tags_type)
     train_file, dev_file, test_file = tags_type + "/" + "train", tags_type + "/" + "dev", tags_type + "/" + "test"
     # Create loaders
     train = get_data_as_windows(train_file, separator=SEPARATOR)
     dev = get_data_as_windows(dev_file, is_train=False, separator=SEPARATOR)
     test = get_loader_for_test(test_file)
 
-    model = ComputationGraph()
+    model = ComputationGraph(is_pre_trained)
     optimizer = optim.Adam(model.parameters(), lr=LR)
     trainer = Trainer(train, dev, test, model, optimizer, tags_type)
     tags_predict = trainer.run()
@@ -245,10 +261,6 @@ def initialize_globals(tags_type):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 2:
-        exit(-1)
-    else:
-        tags_type = sys.argv[1]
-        initialize_globals(tags_type)
-        routine(tags_type)
+    options, args = option_parser.parse_args()
+    routine(options)
 

@@ -11,6 +11,8 @@ fd.close()
 
 
 def dis(w1,w2):
+
+
     d = np.max([float(np.linalg.norm(w1, 2) * np.linalg.norm(w2, 2)), 1e-8])
     n = np.dot(u, v)
     return n / d

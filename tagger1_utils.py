@@ -13,18 +13,20 @@ TAGS, WORDS = set(), set()
 T2I, I2T, W2I, I2W = dict(), dict(), dict(), dict()
 
 
-def read_data(fname, tagged_data=True):
+def read_data(fname, tagged_data=True, is_train=True):
     """
     This function reads the data into list of sentences.
     if the data is tagged data and each word is in new line,
     each sentence will be list of words with their tags, as tuples.
     :param fname: file path
     :param tagged_data: if the data is tagged
+    :param is_train: if the data is read for train
     :return: data , list of sentences
     """
     data = []
     sentence = []
     # For not tagged data
+    print "Reading data from:", fname, " tagged data?", tagged_data, " is train?", is_train
     if not tagged_data:
         for line in file(fname):
             if line.strip() == "":
@@ -39,15 +41,18 @@ def read_data(fname, tagged_data=True):
         try:
             word, label = line.strip().split(" ",1)
             sentence.append((word, label))
-            TAGS.add(label)
-            WORDS.add(word)
+            if is_train:
+                TAGS.add(label)
+                WORDS.add(word)
         except ValueError:
             data.append(sentence)
             sentence = []
-    WORDS.add(START_STR)
-    WORDS.add(END_STR)
+    if is_train:
+        WORDS.update([UNK, START_STR, END_STR])
+        TAGS.update([UNK, START_STR, END_STR])
     if len(sentence) is not 0 and sentence not in data:
         data.append(sentence)
+    print "Finished reading data."
     return data
 
 
@@ -69,17 +74,25 @@ def words_index(word):
         return W2I[UNK]
 
 
-def pad_sentence(sentence, window_length):
+def tags_index(tag):
+    index = T2I[tag]
+    return index
+
+
+def pad_sentence(sentence, window_length, is_tagged=True):
+    S_PAD = START_W_TAG if is_tagged else START_STR
+    E_PAD = END_W_TAG if is_tagged else END_STR
     padded = []
     for i in range(window_length):
-        padded.append(START_W_TAG)
+        padded.append(S_PAD)
     padded += sentence
     for i in range(window_length):
-        padded.append(END_W_TAG)
+        padded.append(E_PAD)
     return padded
 
 
 def create_windows(sentences, windows_length=2, with_tags=True):
+    print "Creating windows from", len(sentences), "sentences"
     if with_tags:
         initialize_indexes()
     windows = []
@@ -94,12 +107,13 @@ def create_windows(sentences, windows_length=2, with_tags=True):
                 offset = i + j
                 window.append(padded[offset])
             windows.append(index_window(window))
-            mid_tags.append(tag)
-
+            mid_tags.append(tags_index(tag))
+    print "created", len(windows), "windows and", len(mid_tags), "tags"
     return windows, mid_tags
 
 
 def create_windows_without_tags(sentences, windows_length=2):
+    print "creating windows for a file without tags"
     windows = []
     js = range(-windows_length, windows_length + 1)
     for sentence in sentences:
@@ -109,7 +123,8 @@ def create_windows_without_tags(sentences, windows_length=2):
             for j in js:
                 offset = i + j
                 window.append(padded[offset])
-            windows.append(index_window(window))
+            windows.append(index_window(window, is_tagged=False))
+    print "created ", len(windows), " windows "
     return windows
 
 
@@ -122,10 +137,14 @@ def tagged_window_to_words_and_tags(window):
     return words, tags
 
 
-def index_window(window):
+def index_window(window, is_tagged=True):
     indexes = []
-    for w,t in window:
-        indexes.append(words_index(w))
+    if is_tagged:
+        for w,t in window:
+            indexes.append(words_index(w))
+    else:
+        for w in window:
+            indexes.append(words_index(w))
     return indexes
 
 

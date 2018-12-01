@@ -1,6 +1,4 @@
 import json
-import os
-
 import numpy as np
 import torch
 import sys
@@ -10,6 +8,10 @@ from torch.utils.data import Dataset, DataLoader
 import torch.nn.functional as functional
 import torch.optim as optim
 
+STUDENT={'name': 'Daniel Greenspan_Eilon Bashari',
+         'ID': '308243948_308576933'}
+
+# Globals
 EMBEDDING_ROW_LENGTH = 50
 WINDOWS_SIZE = 5
 EDIM = WINDOWS_SIZE * EMBEDDING_ROW_LENGTH
@@ -19,8 +21,21 @@ EPOCHS = 3
 LR = 0.01
 SEPARATOR = ""
 
+
 class Trainer(object):
+    """
+    class trainer in charge of the routine of this app.
+    """
     def __init__(self, train, dev, test, model, optimizer, tags_type):
+        """
+        constructor for Trainer
+        :param train: train loader
+        :param dev: dev loader
+        :param test: test loader
+        :param model: model of neural network
+        :param optimizer: optimizer from optim
+        :param tags_type: tags type - pos or ner
+        """
         self.train_loader = train
         self.dev_loader = dev
         self.test_loader = test
@@ -29,6 +44,10 @@ class Trainer(object):
         self.tags_type = tags_type
 
     def run(self):
+        """
+        run routine
+        :return: the predicted tags
+        """
         dev_avg_loss_in_epoch = {}
         dev_acc_per_epoch = {}
         for epoch in range(1, EPOCHS + 1):
@@ -44,12 +63,16 @@ class Trainer(object):
             print "Dev: average dev loss is {:.4f}, accuracy is {} of {}, {:.00f}%".format(dev_loss,
                                                                                 dev_correct, dev_total, dev_accuracy)
 
-        utils.plot_graph(dev_avg_loss_in_epoch, color="blue", label="Average loss for epoch")
-        utils.plot_graph(dev_acc_per_epoch, color="red", label="Accuracy for epoch")
+        utils.plot_graph(dev_avg_loss_in_epoch, color="blue", label="Dev Average Loss")
+        utils.plot_graph(dev_acc_per_epoch, color="red", label="Dev Average Accuracy")
         tags_predict = self.test(self.tags_type)
         return tags_predict
 
     def train(self):
+        """
+        train routine
+        :return: train loss, correct, total, acc
+        """
         self.model.train()
         train_loss = 0
         correct = 0
@@ -70,6 +93,11 @@ class Trainer(object):
         return train_loss, correct, total, acc
 
     def dev(self, tagger_type):
+        """
+        dev routine
+        :param tagger_type: tagger type ner or pos
+        :return: dev loss, correct, total and acc
+        """
         self.model.eval()
         validation_loss = 0
         correct = 0
@@ -91,6 +119,11 @@ class Trainer(object):
         return validation_loss, correct, total, accuracy
 
     def test(self, tagger_type):
+        """
+        test routine
+        :param tagger_type:
+        :return: the predicted tags
+        """
         self.model.eval()
         tags_predict = []
         for data in self.test_loader:
@@ -102,6 +135,9 @@ class Trainer(object):
 
 
 class ComputationGraph(nn.Module):
+    """
+    Computation graph for neural network
+    """
     def __init__(self):
         super(ComputationGraph, self).__init__()
 
@@ -118,9 +154,16 @@ class ComputationGraph(nn.Module):
 
 
 # For train and dev
-def get_data_as_windows(data_file, is_train=True, seperator=" "):
+def get_data_as_windows(data_file, is_train=True, separator=" "):
+    """
+    get data as windows saved in data loader
+    :param data_file: path to file
+    :param is_train: is train routine
+    :param separator: seprator in files
+    :return: data loader
+    """
     print "Getting data from: ", data_file
-    sentences = utils.read_data(data_file, is_train=True, seperator=seperator)
+    sentences = utils.read_data(data_file, is_train=True, seperator=separator)
     if is_train:
         utils.initialize_indexes()
     windows, tags = utils.create_windows(sentences)
@@ -134,6 +177,11 @@ def get_data_as_windows(data_file, is_train=True, seperator=" "):
 
 
 def get_loader_for_test(data_file):
+    """
+    get loader for the test routine
+    :param data_file:
+    :return: loader for test
+    """
     print "Getting data from: ", data_file
     sentences = utils.read_data(data_file, tagged_data=False, is_train=False)
     windows = utils.create_windows_without_tags(sentences)
@@ -141,6 +189,13 @@ def get_loader_for_test(data_file):
 
 
 def write_result(input_test_path, output_path, tags):
+    """
+    writes the result to the file
+    :param input_test_path: input file
+    :param output_path: output path
+    :param tags: predicted tags
+    :return:
+    """
     print "Writing result"
     out_fd = open(output_path, 'w')
     in_fd = open(input_test_path, 'r')
@@ -154,10 +209,15 @@ def write_result(input_test_path, output_path, tags):
 
 
 def routine(tags_type):
+    """
+    routine of this app creating the parameters for the trainer and runs it.
+    :param tags_type:
+    :return:
+    """
     train_file, dev_file, test_file = tags_type + "/" + "train", tags_type + "/" + "dev", tags_type + "/" + "test"
     # Create loaders
-    train = get_data_as_windows(train_file, seperator=SEPARATOR)
-    dev = get_data_as_windows(dev_file, is_train=False, seperator=SEPARATOR)
+    train = get_data_as_windows(train_file, separator=SEPARATOR)
+    dev = get_data_as_windows(dev_file, is_train=False, separator=SEPARATOR)
     test = get_loader_for_test(test_file)
 
     model = ComputationGraph()
@@ -168,6 +228,11 @@ def routine(tags_type):
 
 
 def initialize_globals(tags_type):
+    """
+    initialize the globals of this app from json file
+    :param tags_type:
+    :return:
+    """
     config_fd = open("taggers_params.json", "r")
     data = json.load(config_fd)
     config_fd.close()
@@ -177,6 +242,7 @@ def initialize_globals(tags_type):
     LR = config["LR"]
     BATCH = config["BATCH"]
     EPOCHS = config["EPOCHS"]
+
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:

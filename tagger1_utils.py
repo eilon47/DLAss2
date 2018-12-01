@@ -5,11 +5,11 @@ from matplotlib.legend_handler import HandlerLine2D
 STUDENT={'name': 'Daniel Greenspan_Eilon Bashari',
          'ID': '308243948_308576933'}
 
+# Globals
 wordVecotrFile = "wordVectors.txt"
 vocabFile = "vocab.txt"
 START_STR, END_STR, UNK = "SSSTARTTT", "EEENDDD", "UUUNKKK"
 START_W_TAG, END_W_TAG = (START_STR, START_STR), (END_STR, END_STR)
-
 WORD_TO_VEC = {word.strip():np.asanyarray(vector.strip().split(" ")) for word, vector in zip(open(vocabFile), open(wordVecotrFile))}
 TAGS, WORDS = set(), set()
 T2I, I2T, W2I, I2W = dict(), dict(), dict(), dict()
@@ -59,6 +59,10 @@ def read_data(fname, tagged_data=True, is_train=True, seperator=" "):
 
 
 def initialize_indexes():
+    """
+    initialize the indexes and the words in the dictionaries
+    :return:
+    """
     global T2I, I2T, W2I, I2W, WORDS, TAGS
     WORDS.update([START_STR, END_STR])
     for i, word in enumerate(WORDS):
@@ -69,7 +73,13 @@ def initialize_indexes():
         I2T[i] = tag
 
 
-def create_windows(sentences, windows_length=2, with_tags=True):
+def create_windows(sentences, windows_length=2):
+    """
+    create windows for each sentence in the sentences
+    :param sentences:
+    :param windows_length: number of words from each side of the mid word
+    :return:
+    """
     print "Creating windows from", len(sentences), "sentences"
     windows = []
     mid_tags = []
@@ -88,8 +98,13 @@ def create_windows(sentences, windows_length=2, with_tags=True):
     return windows, mid_tags
 
 
-
 def create_windows_without_tags(sentences, windows_length=2):
+    """
+       create windows for each sentence in the sentences
+       :param sentences:
+       :param windows_length: number of words from each side of the mid word
+       :return:
+       """
     print "creating windows for a file without tags"
     windows = []
     js = range(-windows_length, windows_length + 1)
@@ -106,6 +121,12 @@ def create_windows_without_tags(sentences, windows_length=2):
 
 
 def index_window(window, is_tagged=True):
+    """
+    create list of indexes of each word in the window
+    :param window:
+    :param is_tagged:
+    :return:
+    """
     indexes = []
     if is_tagged:
         for w,t in window:
@@ -117,6 +138,11 @@ def index_window(window, is_tagged=True):
 
 
 def words_index(word):
+    """
+    returns the index of the word
+    :param word:
+    :return:
+    """
     try:
         index = W2I[word]
         return index
@@ -125,11 +151,21 @@ def words_index(word):
 
 
 def tags_index(tag):
+    """
+    returns the tag's index
+    :param tag:
+    :return:
+    """
     index = T2I[tag]
     return index
 
 
 def from_index_to_tag(index):
+    """
+    returns the tag according to index or list of indexes
+    :param index:
+    :return:
+    """
     if isinstance(index, int):
         return I2T[index]
     if isinstance(index, list):
@@ -137,6 +173,13 @@ def from_index_to_tag(index):
 
 
 def pad_sentence(sentence, window_length, is_tagged=True):
+    """
+    pad sentences with start and end
+    :param sentence:
+    :param window_length:
+    :param is_tagged:
+    :return:
+    """
     S_PAD = START_W_TAG if is_tagged else START_STR
     E_PAD = END_W_TAG if is_tagged else END_STR
     padded = []
@@ -149,6 +192,13 @@ def pad_sentence(sentence, window_length, is_tagged=True):
 
 
 def plot_graph(plot_values, color, label):
+    """
+    create plot
+    :param plot_values: x:y dictionary
+    :param color: plot color
+    :param label: name of the plot
+    :return:
+    """
     line1, = plt.plot(plot_values.keys(), plot_values.values(), color,
                       label=label)
     # drawing name of the graphs
@@ -156,8 +206,12 @@ def plot_graph(plot_values, color, label):
     plt.show()
 
 
-
 def tagged_window_to_words_and_tags(window):
+    """
+    returns the words and tags of a window
+    :param window:
+    :return:
+    """
     words, tags = [], []
     for tup in window:
         w,t = tup

@@ -10,7 +10,7 @@ wordVecotrFile = "wordVectors.txt"
 vocabFile = "vocab.txt"
 START_STR, END_STR, UNK = "SSSTARTTT", "EEENDDD", "UUUNKKK"
 START_W_TAG, END_W_TAG = (START_STR, START_STR), (END_STR, END_STR)
-WORD_TO_VEC = {word.strip():np.asanyarray(vector.strip().split(" ")) for word, vector in zip(open(vocabFile), open(wordVecotrFile))}
+WORD_TO_VEC = {word.strip():vector for word, vector in zip(open(vocabFile),np.loadtxt(wordVecotrFile))}
 TAGS, WORDS = set(), set()
 T2I, I2T, W2I, I2W = dict(), dict(), dict(), dict()
 

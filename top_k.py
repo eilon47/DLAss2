@@ -13,16 +13,16 @@ fd.close()
 def dis(w1,w2):
 
     d = np.max([float(np.linalg.norm(w1, 2) * np.linalg.norm(w2, 2)), 1e-8])
-    n = np.dot(u, v)
+    n = np.dot(w1, w2)
     return n / d
 
-    vec1 = W2V[w1]
-    vec2 = W2V[w2]
-    p1 = np.dot(vec1, vec2)
-    p2 = np.sqrt(np.dot(vec1, vec1))
-    p3 = np.sqrt(np.dot(vec2, vec2))
-    distance = np.divide(p1,np.multiply(p2,p3))
-    return distance
+    #vec1 = W2V[w1]
+    #vec2 = W2V[w2]
+    #p1 = np.dot(vec1, vec2)
+    #p2 = np.sqrt(np.dot(vec1, vec1))
+    #p3 = np.sqrt(np.dot(vec2, vec2))
+    #distance = np.divide(p1,np.multiply(p2,p3))
+    #return distance
 
 
 def most_similar(word, k=5):
@@ -31,7 +31,7 @@ def most_similar(word, k=5):
     for w in W2V.keys():
         if w is word:
             continue
-        distance = dis(word, w)
+        distance = dis(W2V[word],W2V[w])
         similarities.append((w, distance))
 
     for i in range(k):

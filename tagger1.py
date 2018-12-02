@@ -26,6 +26,7 @@ SEPARATOR = " "
 option_parser = OptionParser()
 option_parser.add_option("-t", "--type", dest="type", help="Choose the type of the tagger", default="pos")
 option_parser.add_option("-e", "--embedding", help="if you want to use the pre trained embedding layer", dest="E", default=False, action="store_true")
+option_parser.add_option("-f", "--fix", help="if you want to use prefix and suffix embedding", dest="F", default=False, action="store_true")
 # option_parser.add_option("-c", "--config", help="do not take the configuration from the json file", dest="config", default=True, action="store_false")
 
 
@@ -151,6 +152,14 @@ class ComputationGraph(nn.Module):
         self.layer1 = nn.Linear(hidden_size, out_size)
 
     def forward(self, x):
+        pass
+
+
+class CGNotPreTrained(ComputationGraph):
+    def __init__(self):
+        super(CGNotPreTrained, self).__init__(len(utils.WORDS), EMBEDDING_ROW_LENGTH, WINDOWS_SIZE, HID, len(utils.TAGS))
+
+    def forward(self, x):
         x = self.E(x).view(-1, self.input_size)
         x = torch.tanh(self.layer0(x))
         x = self.layer1(x)
@@ -176,7 +185,8 @@ class ComputationGraphFix(nn.Module):
         x = self.layer1(x)
         return functional.log_softmax(x, dim=1)
 
-    def prefix_suffix_windows(self, x):
+
+    def prefix_suffix_windows(self,x):
         windows_pref = x.data.numpy().copy()
         windows_suff = x.data.numpy().copy()
         windows_pref = windows_pref.reshape(-1)
@@ -193,7 +203,9 @@ class ComputationGraphFix(nn.Module):
         # reshape
         windows_pref = torch.from_numpy(windows_pref.reshape(x.data.shape)).type(torch.LongTensor)
         windows_suff = torch.from_numpy(windows_suff.reshape(x.data.shape)).type(torch.LongTensor)
-        return windows_pref, windows_suff
+
+
+        return windows_pref,windows_suff
 
 
 class CGNotPreTrained(ComputationGraph):

@@ -26,6 +26,8 @@ PREF_LENGTH = 3
 option_parser = OptionParser()
 option_parser.add_option("-t", "--type", dest="type", help="Choose the type of the tagger", default="pos")
 option_parser.add_option("-e", "--embedding", help="if you want to use the pre trained embedding layer", dest="E", default=False, action="store_true")
+option_parser.add_option("-f", "--fix", help="if you want to use the prefix and siffix layers as well", dest="F", default=False, action="store_true")
+
 # option_parser.add_option("-c", "--config", help="do not take the configuration from the json file", dest="config", default=True, action="store_false")
 
 
@@ -158,6 +160,14 @@ def init_suffix():
     return suffixes
 
 
+def word2Pref(word):
+    return word[0:PREF_LENGTH]
+
+
+def word2suff(word):
+    return word[-SUFF_LENGTH:]
+
+
 class ComputationGraph(nn.Module):
     """
     Computation graph for neural network
@@ -173,14 +183,14 @@ class ComputationGraph(nn.Module):
             self.E.weight.data.copy_(torch.from_numpy(utils.E))
             self.input_size = PRE_TRAINED_EDIM
 
-        self.pref_E = init_prefix()
-        self.suff_E = init_suffix()
+        self.E_prefix = init_prefix()
+        self.E_suffix = init_suffix()
 
-        self.p2i = utils.create_P2I(self.pref_E)
-        self.s2i = utils.create_S2I(self.suff_E)
+        self.p2i = utils.create_P2I(self.E_prefix)
+        self.s2i = utils.create_S2I(self.E_suffix)
 
-        self.E_prefix = nn.Embedding(len(self.pref_E), EMBEDDING_ROW_LENGTH)
-        self.E_suffix = nn.Embedding(len(self.suff_E), EMBEDDING_ROW_LENGTH)
+        self.E_prefix = nn.Embedding(len(self.E_prefix), EMBEDDING_ROW_LENGTH)
+        self.E_suffix = nn.Embedding(len(self.E_suffix), EMBEDDING_ROW_LENGTH)
 
         self.layer0 = nn.Linear(self.input_size, HID)
         self.layer1 = nn.Linear(HID, len(utils.TAGS))
@@ -193,22 +203,17 @@ class ComputationGraph(nn.Module):
         x = self.layer1(x)
         return functional.log_softmax(x, dim=1)
 
-    def prefix_suffix_windows(self,x):
+    def prefix_suffix_windows(self, x):
 
         windows_pref = x.data.numpy().copy()
         windows_suff = x.data.numpy().copy()
         windows_pref = windows_pref.reshape(-1)
         windows_suff = windows_suff.reshape(-1)
-        # get lists of prefixes/suffixes for the words in the window
+        # get lists of prefixes/suffixes for the words in the window5
+        windows = []
 
+        windows_pref = [self.p2i[word2Pref(utils.I2W[i].lower())] for i in windows_pref]
 
-        windows_pref = [self.pref_E[self.p2i[utils.I2W[index][:PREF_LENGTH]]]
-                        for index in windows_pref]
-
-
-
-        windows_suff = [self.suffixes[self.suffix_to_index[utils.I2W[index][:-SUFF_LENGTH]]]
-                        for index in windows_suff]
         # get lists of the indices for the prefixes/suffixes
         windows_pref = [self.prefix_to_index[pref] for pref in windows_pref]
         windows_suff = [self.suffix_to_index[suff] for suff in windows_suff]

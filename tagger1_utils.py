@@ -17,6 +17,20 @@ T2I, I2T, W2I, I2W = dict(), dict(), dict(), dict()
 is_pre_trained = False
 
 
+# for part4
+SUFF_LENGTH = 3
+PREF_LENGTH = 3
+
+
+def create_P2I(prefixes):
+    return {pref: i for i, pref in enumerate(prefixes)}
+
+
+def create_S2I(suffixes):
+    return {suff: i for i, suff in enumerate(suffixes)}
+
+
+
 def set_pre_trained(value):
     global is_pre_trained
     is_pre_trained = value

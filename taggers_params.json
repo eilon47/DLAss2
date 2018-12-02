@@ -1,4 +1,6 @@
 {
+  "EMBEDDING_ROW_LENGTH":50,
+  "WINDOWS_SIZE" : 5,
   "pos": {
     "LR": 0.01,
     "EPOCHS": 3,

@@ -1,4 +1,6 @@
 import json
+import time
+
 import numpy as np
 import torch
 import sys
@@ -16,8 +18,7 @@ EMBEDDING_ROW_LENGTH = 50
 WINDOWS_SIZE = 5
 
 HID = 100
-PT_HID = 160
-
+PT_HID = 120
 BATCH = 1024
 EPOCHS = 3
 LR = 0.01
@@ -27,13 +28,14 @@ option_parser = OptionParser()
 option_parser.add_option("-t", "--type", dest="type", help="Choose the type of the tagger", default="pos")
 option_parser.add_option("-e", "--embedding", help="if you want to use the pre trained embedding layer", dest="E", default=False, action="store_true")
 option_parser.add_option("-f", "--fix", help="if you want to use prefix and suffix embedding", dest="F", default=False, action="store_true")
+option_parser.add_option("-p", "--plot", help="if you want to show plots", dest="plot", default=False, action="store_true")
 
 
 class Trainer(object):
     """
     class trainer in charge of the routine of this app.
     """
-    def __init__(self, train, dev, test, model, optimizer, tags_type):
+    def __init__(self, train, dev, test, model, optimizer, tags_type, show_plots=False):
         """
         constructor for Trainer
         :param train: train loader
@@ -49,12 +51,19 @@ class Trainer(object):
         self.model = model
         self.optimizer = optimizer
         self.tags_type = tags_type
+        self.show_plots = show_plots
 
     def run(self):
         """
         run routine
         :return: the predicted tags
         """
+        # TODO D
+        d = {"LR":LR, "EPOCHS":EPOCHS, "Train params":{
+            "acc":0, "total":0, "correct":0, "loss":0
+        },"Dev params":{
+            "acc":0, "total":0, "correct":0, "loss":0
+        }, }
         dev_avg_loss_in_epoch = {}
         dev_acc_per_epoch = {}
         for epoch in range(1, EPOCHS + 1):
@@ -70,10 +79,15 @@ class Trainer(object):
             print "Dev: average dev loss is {:.4f}, accuracy is {} of {}, {:.00f}%".format(dev_loss,
                                                                                 dev_correct, dev_total, dev_accuracy)
 
-        utils.plot_graph(dev_avg_loss_in_epoch, color="blue", label="Dev Average Loss")
-        utils.plot_graph(dev_acc_per_epoch, color="red", label="Dev Average Accuracy")
+        # TODO d
+        d["Train params"]["acc"], d["Train params"]["loss"], d["Train params"]["correct"], d["Train params"]["total"] = train_acc, train_loss, correct_train, total_train
+        d["Dev params"]["acc"], d["Dev params"]["loss"], d["Dev params"]["correct"], d["Dev params"]["total"] = dev_accuracy, dev_loss, dev_correct, dev_total
+
+        if self.show_plots:
+            utils.plot_graph(dev_avg_loss_in_epoch, color="blue", label="Dev Average Loss")
+            utils.plot_graph(dev_acc_per_epoch, color="red", label="Dev Average Accuracy")
         tags_predict = self.test(self.tags_type)
-        return tags_predict
+        return tags_predict, d
 
     def train(self):
         """
@@ -131,6 +145,7 @@ class Trainer(object):
         :param tagger_type:
         :return: the predicted tags
         """
+        print "in test"
         self.model.eval()
         tags_predict = []
         for data in self.test_loader:
@@ -138,6 +153,7 @@ class Trainer(object):
             pred = output.data.max(1, keepdim=True)[1]
             tags_predict.append(pred.item())
         tags_predict = utils.from_index_to_tag(tags_predict)
+        print "finished test"
         return tags_predict
 
 
@@ -228,8 +244,8 @@ class CGNotPreTrainedFix(ComputationGraphFix):
 
 
 def get_computational_graph(trained=False, suffix=False):
-    cg = {(True, True):CGPreTrainedFix(), (True, False):CGPreTrained(),
-          (False, True):CGNotPreTrainedFix(), (False, False):CGNotPreTrained()}
+    cg = {(True, True):(CGPreTrainedFix(), "4"), (True, False):(CGPreTrained(),"3"),
+          (False, True):(CGNotPreTrainedFix(),"4"), (False, False):(CGNotPreTrained(),"1")}
     return cg[(trained, suffix)]
 
 
@@ -295,19 +311,20 @@ def routine(options):
     :return:
     """
     tags_type = options.type
+    print "################### Start routine for type:", tags_type, "##########################"
     initialize_globals(tags_type)
     train_file, dev_file, test_file = tags_type + "/" + "train", tags_type + "/" + "dev", tags_type + "/" + "test"
-
-
+    print "parameters are LR:", LR, "EPOCHS:", EPOCHS
     # Create loaders
     train = get_data_as_windows(train_file, separator=SEPARATOR)
     dev = get_data_as_windows(dev_file, is_train=False, separator=SEPARATOR)
     test = get_loader_for_test(test_file)
-    model = get_computational_graph(options.E, options.F)
+    model, test_num = get_computational_graph(options.E, options.F)
     optimizer = optim.Adam(model.parameters(), lr=LR)
-    trainer = Trainer(train, dev, test, model, optimizer, tags_type)
-    tags_predict = trainer.run()
-    write_result(test_file, "test1."+tags_type, tags_predict)
+    trainer = Trainer(train, dev, test, model, optimizer, tags_type, show_plots=options.plot)
+    tags_predict, d = trainer.run()
+    write_result(test_file, "test{}.".format(test_num)+tags_type, tags_predict)
+    return d
 
 
 def initialize_globals(tags_type):
@@ -319,6 +336,10 @@ def initialize_globals(tags_type):
     config_fd = open("taggers_params.json", "r")
     data = json.load(config_fd)
     config_fd.close()
+    print "reading configuration"
+    global EMBEDDING_ROW_LENGTH, WINDOWS_SIZE
+    EMBEDDING_ROW_LENGTH = data["EMBEDDING_ROW_LENGTH"]
+    WINDOWS_SIZE = data["WINDOWS_SIZE"]
     config = data[tags_type]
     global LR, EPOCHS, BATCH, SEPARATOR
     SEPARATOR = config["SEPARATOR"]
@@ -328,6 +349,11 @@ def initialize_globals(tags_type):
 
 
 if __name__ == '__main__':
+    start_time = time.time()
+    # your code
+
     options, args = option_parser.parse_args()
     routine(options)
+    elapsed_time = time.time() - start_time
+    print "total time ", elapsed_time
 

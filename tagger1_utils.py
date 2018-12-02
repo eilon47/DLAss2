@@ -91,7 +91,6 @@ def read_data(fname, tagged_data=True, is_train=True, seperator=" "):
     if is_train:
         WORDS.add(UNK)
         TAGS.add(UNK)
-
     print "Finished reading data from file", fname
     return data
 

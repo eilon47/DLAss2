@@ -22,12 +22,23 @@ SUFF_LENGTH = 3
 PREF_LENGTH = 3
 
 
-def create_P2I(prefixes):
-    return {pref: i for i, pref in enumerate(prefixes)}
+def word_to_prefix(w):
+    return w[0:PREF_LENGTH]
 
 
-def create_S2I(suffixes):
-    return {suff: i for i, suff in enumerate(suffixes)}
+def word_to_suffix(w):
+    return w[-SUFF_LENGTH:]
+
+
+def init_fix():
+    prefixes = []
+    suffix = []
+    for word in WORDS:
+        pref = word_to_prefix(word)
+        suff = word_to_suffix(word)
+        prefixes.append(pref)
+        suffix.append(suff)
+    return prefixes, suffix
 
 
 
@@ -74,12 +85,14 @@ def read_data(fname, tagged_data=True, is_train=True, seperator=" "):
         except ValueError:
             data.append(sentence)
             sentence = []
+    if len(sentence) is not 0 and sentence not in data:
+        data.append(sentence)
+
     if is_train:
         WORDS.add(UNK)
         TAGS.add(UNK)
-    if len(sentence) is not 0 and sentence not in data:
-        data.append(sentence)
-    print "Finished reading data."
+
+    print "Finished reading data from file", fname
     return data
 
 
@@ -243,6 +256,7 @@ def tagged_window_to_words_and_tags(window):
         words.append(w)
         tags.append(t)
     return words, tags
+
 
 
 

@@ -14,13 +14,14 @@ STUDENT={'name': 'Daniel Greenspan_Eilon Bashari',
 # Globals
 EMBEDDING_ROW_LENGTH = 50
 WINDOWS_SIZE = 5
-EDIM = WINDOWS_SIZE * EMBEDDING_ROW_LENGTH
+
 HID = 100
+PT_HID = 160
+
 BATCH = 1024
 EPOCHS = 3
 LR = 0.01
 SEPARATOR = " "
-PRE_TRAINED_EDIM = WINDOWS_SIZE * utils.E.shape[1]
 
 option_parser = OptionParser()
 option_parser.add_option("-t", "--type", dest="type", help="Choose the type of the tagger", default="pos")
@@ -142,28 +143,77 @@ class Trainer(object):
 
 
 class ComputationGraph(nn.Module):
-    """
-    Computation graph for neural network
-    """
-    def __init__(self, is_pre_trained):
+    def __init__(self, e_rows, e_cols, window_size ,hidden_size, out_size):
         super(ComputationGraph, self).__init__()
-        if not is_pre_trained:
-            self.E = nn.Embedding(len(utils.WORDS), EMBEDDING_ROW_LENGTH)
-            self.input_size = EDIM
-        else:
-            print "Using pre trained embedding layer"
-            self.E = nn.Embedding(utils.E.shape[0], utils.E.shape[1])
-            self.E.weight.data.copy_(torch.from_numpy(utils.E))
-            self.input_size = PRE_TRAINED_EDIM
+        self.E = nn.Embedding(e_rows, e_cols)
+        self.input_size = e_cols * window_size
+        self.layer0 = nn.Linear(self.input_size, hidden_size)
+        self.layer1 = nn.Linear(hidden_size, out_size)
 
-        self.layer0 = nn.Linear(self.input_size, HID)
-        self.layer1 = nn.Linear(HID, len(utils.TAGS))
+    def forward(self, x):
+        pass
+
+
+class CGNotPreTrained(ComputationGraph):
+    def __init__(self):
+        super(CGNotPreTrained, self).__init__(len(utils.WORDS), EMBEDDING_ROW_LENGTH, WINDOWS_SIZE, HID, len(utils.TAGS))
 
     def forward(self, x):
         x = self.E(x).view(-1, self.input_size)
         x = torch.tanh(self.layer0(x))
         x = self.layer1(x)
         return functional.log_softmax(x, dim=1)
+
+
+class CGPreTrained(ComputationGraph):
+    def __init__(self):
+        super(CGPreTrained, self).__init__(utils.E.shape[0], utils.E.shape[1], WINDOWS_SIZE, PT_HID, len(utils.TAGS))
+        utils.set_pre_trained(True)
+
+    def forward(self, x):
+        x = self.E(x).view(-1, self.input_size)
+        x = torch.tanh(self.layer0(x))
+        x = self.layer1(x)
+        return functional.log_softmax(x, dim=1)
+
+
+class CGPreTrainedFix(CGPreTrained):
+    def __init__(self):
+        super(CGPreTrainedFix, self).__init__()
+        self.prefixes,  self.suffixes = utils.init_fix()
+        self.p2i = {prefix : i for i, prefix in enumerate(self.prefixes)}
+        self.s2i = {suffix : i for i , suffix in enumerate(self.suffixes)}
+        self.E_prefix = nn.Embedding(len(self.prefixes), EMBEDDING_ROW_LENGTH)
+        self.E_suffix = nn.Embedding(len(self.suffixes), EMBEDDING_ROW_LENGTH)
+
+    def forward(self, x):
+        prefix_windows, suffix_window = self.prefix_suffix_windows(x)
+        x = (self.E(x) + self.E_prefix(prefix_windows) + self.E_suffix(suffix_window)).view(-1, self.input_size)
+        x = torch.tanh(self.layer0(x))
+        x = self.layer1(x)
+        return functional.log_softmax(x, dim=1)
+
+
+    def prefix_suffix_windows(self,x):
+        windows_pref = x.data.numpy().copy()
+        windows_suff = x.data.numpy().copy()
+        windows_pref = windows_pref.reshape(-1)
+        windows_suff = windows_suff.reshape(-1)
+        # get lists of prefixes/suffixes for the words in the window
+
+        windows_pref = [self.p2i[utils.word_to_prefix(utils.I2W[index])] for index in windows_pref]
+        windows_suff = [self.s2i[utils.word_to_suffix(utils.I2W[index])] for index in windows_suff]
+
+        # convert to np array
+        windows_pref = np.asanyarray(windows_pref)
+        windows_suff = np.asanyarray(windows_suff)
+
+        # reshape
+        windows_pref = torch.from_numpy(windows_pref.reshape(x.data.shape)).type(torch.LongTensor)
+        windows_suff = torch.from_numpy(windows_suff.reshape(x.data.shape)).type(torch.LongTensor)
+
+
+        return windows_pref,windows_suff
 
 
 # For train and dev
@@ -231,12 +281,13 @@ def routine(options):
     is_pre_trained = options.E
     initialize_globals(tags_type)
     train_file, dev_file, test_file = tags_type + "/" + "train", tags_type + "/" + "dev", tags_type + "/" + "test"
+
+
     # Create loaders
     train = get_data_as_windows(train_file, separator=SEPARATOR)
     dev = get_data_as_windows(dev_file, is_train=False, separator=SEPARATOR)
     test = get_loader_for_test(test_file)
-
-    model = ComputationGraph(is_pre_trained)
+    model = CGPreTrainedFix()
     optimizer = optim.Adam(model.parameters(), lr=LR)
     trainer = Trainer(train, dev, test, model, optimizer, tags_type)
     tags_predict = trainer.run()

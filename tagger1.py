@@ -151,38 +151,21 @@ class ComputationGraph(nn.Module):
         self.layer1 = nn.Linear(hidden_size, out_size)
 
     def forward(self, x):
-        pass
-
-
-class CGNotPreTrained(ComputationGraph):
-    def __init__(self):
-        super(CGNotPreTrained, self).__init__(len(utils.WORDS), EMBEDDING_ROW_LENGTH, WINDOWS_SIZE, HID, len(utils.TAGS))
-
-    def forward(self, x):
         x = self.E(x).view(-1, self.input_size)
         x = torch.tanh(self.layer0(x))
         x = self.layer1(x)
         return functional.log_softmax(x, dim=1)
 
 
-class CGPreTrained(ComputationGraph):
-    def __init__(self):
-        super(CGPreTrained, self).__init__(utils.E.shape[0], utils.E.shape[1], WINDOWS_SIZE, PT_HID, len(utils.TAGS))
-        utils.set_pre_trained(True)
-
-    def forward(self, x):
-        x = self.E(x).view(-1, self.input_size)
-        x = torch.tanh(self.layer0(x))
-        x = self.layer1(x)
-        return functional.log_softmax(x, dim=1)
-
-
-class CGPreTrainedFix(CGPreTrained):
-    def __init__(self):
-        super(CGPreTrainedFix, self).__init__()
-        self.prefixes,  self.suffixes = utils.init_fix()
-        self.p2i = {prefix : i for i, prefix in enumerate(self.prefixes)}
-        self.s2i = {suffix : i for i , suffix in enumerate(self.suffixes)}
+class ComputationGraphFix(nn.Module):
+    def __init__(self, e_rows, e_cols, window_size ,hidden_size, out_size):
+        self.E = nn.Embedding(e_rows, e_cols)
+        self.input_size = e_cols * window_size
+        self.layer0 = nn.Linear(self.input_size, hidden_size)
+        self.layer1 = nn.Linear(hidden_size, out_size)
+        self.prefixes, self.suffixes = utils.init_fix()
+        self.p2i = {prefix: i for i, prefix in enumerate(self.prefixes)}
+        self.s2i = {suffix: i for i, suffix in enumerate(self.suffixes)}
         self.E_prefix = nn.Embedding(len(self.prefixes), EMBEDDING_ROW_LENGTH)
         self.E_suffix = nn.Embedding(len(self.suffixes), EMBEDDING_ROW_LENGTH)
 
@@ -193,8 +176,7 @@ class CGPreTrainedFix(CGPreTrained):
         x = self.layer1(x)
         return functional.log_softmax(x, dim=1)
 
-
-    def prefix_suffix_windows(self,x):
+    def prefix_suffix_windows(self, x):
         windows_pref = x.data.numpy().copy()
         windows_suff = x.data.numpy().copy()
         windows_pref = windows_pref.reshape(-1)
@@ -211,9 +193,32 @@ class CGPreTrainedFix(CGPreTrained):
         # reshape
         windows_pref = torch.from_numpy(windows_pref.reshape(x.data.shape)).type(torch.LongTensor)
         windows_suff = torch.from_numpy(windows_suff.reshape(x.data.shape)).type(torch.LongTensor)
+        return windows_pref, windows_suff
 
 
-        return windows_pref,windows_suff
+class CGNotPreTrained(ComputationGraph):
+    def __init__(self):
+        super(CGNotPreTrained, self).__init__(len(utils.WORDS), EMBEDDING_ROW_LENGTH, WINDOWS_SIZE, HID, len(utils.TAGS))
+
+class CGPreTrained(ComputationGraph):
+    def __init__(self):
+        super(CGPreTrained, self).__init__(utils.E.shape[0], utils.E.shape[1], WINDOWS_SIZE, PT_HID, len(utils.TAGS))
+
+class CGNotPreTrainedFix(ComputationGraphFix):
+    def __init__(self):
+        super(CGNotPreTrainedFix, self).__init__(len(utils.WORDS), EMBEDDING_ROW_LENGTH, WINDOWS_SIZE, HID, len(utils.TAGS))
+
+
+class CGPreTrainedFix(ComputationGraphFix):
+    def __init__(self):
+        super(CGPreTrainedFix, self).__init__(utils.E.shape[0], utils.E.shape[1], WINDOWS_SIZE, PT_HID, len(utils.TAGS))
+
+
+
+def get_computational_graph(trained=False, suffix=False):
+    cg = {(True, True):CGPreTrainedFix(), (True, False):CGPreTrained(),
+          (False, True):CGNotPreTrainedFix(), (False, False):CGNotPreTrained()}
+    return cg[(trained, suffix)]
 
 
 # For train and dev
@@ -287,7 +292,7 @@ def routine(options):
     train = get_data_as_windows(train_file, separator=SEPARATOR)
     dev = get_data_as_windows(dev_file, is_train=False, separator=SEPARATOR)
     test = get_loader_for_test(test_file)
-    model = CGPreTrainedFix()
+    model = get_computational_graph(options.E, options.F)
     optimizer = optim.Adam(model.parameters(), lr=LR)
     trainer = Trainer(train, dev, test, model, optimizer, tags_type)
     tags_predict = trainer.run()

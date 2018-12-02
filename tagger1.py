@@ -32,6 +32,7 @@ option_parser.add_option("-p", "--plot", help="If you want to show plots", dest=
 option_parser.add_option("-l", "--lr", dest="lr", help="Choose the learning rate", default=None, type=float)
 option_parser.add_option("-i", "--iter", dest="epochs", help="Choose the epochs", default=None, type=int)
 
+
 class Trainer(object):
     """
     class trainer in charge of the routine of this app.
@@ -59,13 +60,6 @@ class Trainer(object):
         run routine
         :return: the predicted tags
         """
-        # TODO D
-        d = {"LR":LR, "EPOCHS":EPOCHS,
-        "Train params":{
-            "acc":0, "total":0, "correct":0, "loss":0
-        },"Dev params":{
-            "acc":0, "total":0, "correct":0, "loss":0
-        }, }
         dev_avg_loss_in_epoch = {}
         dev_acc_per_epoch = {}
         for epoch in range(1, EPOCHS + 1):
@@ -81,15 +75,11 @@ class Trainer(object):
             print "Dev: average dev loss is {:.4f}, accuracy is {} of {}, {:.00f}%".format(dev_loss,
                                                                                 dev_correct, dev_total, dev_accuracy)
 
-        # TODO d
-        d["Train params"]["acc"], d["Train params"]["loss"], d["Train params"]["correct"], d["Train params"]["total"] = train_acc, train_loss, correct_train, total_train
-        d["Dev params"]["acc"], d["Dev params"]["loss"], d["Dev params"]["correct"], d["Dev params"]["total"] = dev_accuracy, dev_loss, dev_correct, dev_total
-
         if self.show_plots:
             utils.plot_graph(dev_avg_loss_in_epoch, color="blue", label="Dev Average Loss")
             utils.plot_graph(dev_acc_per_epoch, color="red", label="Dev Average Accuracy")
         tags_predict = self.test(self.tags_type)
-        return tags_predict, d
+        return tags_predict
 
     def train(self):
         """
@@ -330,9 +320,8 @@ def routine(options):
     model, test_num = get_computational_graph(options.E, options.F)
     optimizer = optim.Adam(model.parameters(), lr=LR)
     trainer = Trainer(train, dev, test, model, optimizer, tags_type, show_plots=options.plot)
-    tags_predict, d = trainer.run()
+    tags_predict= trainer.run()
     write_result(test_file, "test{}.".format(test_num)+tags_type, tags_predict)
-    return d
 
 
 def initialize_globals(tags_type):

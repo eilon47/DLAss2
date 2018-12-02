@@ -27,8 +27,6 @@ option_parser = OptionParser()
 option_parser.add_option("-t", "--type", dest="type", help="Choose the type of the tagger", default="pos")
 option_parser.add_option("-e", "--embedding", help="if you want to use the pre trained embedding layer", dest="E", default=False, action="store_true")
 option_parser.add_option("-f", "--fix", help="if you want to use prefix and suffix embedding", dest="F", default=False, action="store_true")
-# option_parser.add_option("-c", "--config", help="do not take the configuration from the json file", dest="config", default=True, action="store_false")
-
 
 
 class Trainer(object):
@@ -143,6 +141,7 @@ class Trainer(object):
         return tags_predict
 
 
+# Computation graph = without - F
 class ComputationGraph(nn.Module):
     def __init__(self, e_rows, e_cols, window_size ,hidden_size, out_size):
         super(ComputationGraph, self).__init__()
@@ -152,22 +151,16 @@ class ComputationGraph(nn.Module):
         self.layer1 = nn.Linear(hidden_size, out_size)
 
     def forward(self, x):
-        pass
-
-
-class CGNotPreTrained(ComputationGraph):
-    def __init__(self):
-        super(CGNotPreTrained, self).__init__(len(utils.WORDS), EMBEDDING_ROW_LENGTH, WINDOWS_SIZE, HID, len(utils.TAGS))
-
-    def forward(self, x):
         x = self.E(x).view(-1, self.input_size)
         x = torch.tanh(self.layer0(x))
         x = self.layer1(x)
         return functional.log_softmax(x, dim=1)
 
 
+# Computation graph with using prefix and suffix = -F
 class ComputationGraphFix(nn.Module):
     def __init__(self, e_rows, e_cols, window_size ,hidden_size, out_size):
+        super(ComputationGraphFix, self).__init__()
         self.E = nn.Embedding(e_rows, e_cols)
         self.input_size = e_cols * window_size
         self.layer0 = nn.Linear(self.input_size, hidden_size)
@@ -184,7 +177,6 @@ class ComputationGraphFix(nn.Module):
         x = torch.tanh(self.layer0(x))
         x = self.layer1(x)
         return functional.log_softmax(x, dim=1)
-
 
     def prefix_suffix_windows(self,x):
         windows_pref = x.data.numpy().copy()
@@ -208,23 +200,31 @@ class ComputationGraphFix(nn.Module):
         return windows_pref,windows_suff
 
 
+# Pre trained with E from file without fix = True, False
+class CGPreTrained(ComputationGraph):
+    def __init__(self):
+        super(CGPreTrained, self).__init__(utils.E.shape[0], utils.E.shape[1], WINDOWS_SIZE, PT_HID, len(utils.TAGS))
+        self.E.weight.data.copy_(torch.from_numpy(utils.E))
+        utils.set_pre_trained(True)
+
+
+# Pre trained with E from file with fix = True, True
+class CGPreTrainedFix(ComputationGraphFix):
+    def __init__(self):
+        super(CGPreTrainedFix, self).__init__(utils.E.shape[0], utils.E.shape[1], WINDOWS_SIZE, PT_HID, len(utils.TAGS))
+        self.E.weight.data.copy_(torch.from_numpy(utils.E))
+        utils.set_pre_trained(True)
+
+# Not pre trained , random E , without fix = False, False
 class CGNotPreTrained(ComputationGraph):
     def __init__(self):
         super(CGNotPreTrained, self).__init__(len(utils.WORDS), EMBEDDING_ROW_LENGTH, WINDOWS_SIZE, HID, len(utils.TAGS))
 
-class CGPreTrained(ComputationGraph):
-    def __init__(self):
-        super(CGPreTrained, self).__init__(utils.E.shape[0], utils.E.shape[1], WINDOWS_SIZE, PT_HID, len(utils.TAGS))
 
+# Not pre trained, random E, with fix = False, True
 class CGNotPreTrainedFix(ComputationGraphFix):
     def __init__(self):
         super(CGNotPreTrainedFix, self).__init__(len(utils.WORDS), EMBEDDING_ROW_LENGTH, WINDOWS_SIZE, HID, len(utils.TAGS))
-
-
-class CGPreTrainedFix(ComputationGraphFix):
-    def __init__(self):
-        super(CGPreTrainedFix, self).__init__(utils.E.shape[0], utils.E.shape[1], WINDOWS_SIZE, PT_HID, len(utils.TAGS))
-
 
 
 def get_computational_graph(trained=False, suffix=False):
@@ -295,7 +295,6 @@ def routine(options):
     :return:
     """
     tags_type = options.type
-    is_pre_trained = options.E
     initialize_globals(tags_type)
     train_file, dev_file, test_file = tags_type + "/" + "train", tags_type + "/" + "dev", tags_type + "/" + "test"
 

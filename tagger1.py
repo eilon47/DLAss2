@@ -25,11 +25,12 @@ LR = 0.01
 SEPARATOR = " "
 
 option_parser = OptionParser()
-option_parser.add_option("-t", "--type", dest="type", help="Choose the type of the tagger", default="pos")
-option_parser.add_option("-e", "--embedding", help="if you want to use the pre trained embedding layer", dest="E", default=False, action="store_true")
-option_parser.add_option("-f", "--fix", help="if you want to use prefix and suffix embedding", dest="F", default=False, action="store_true")
-option_parser.add_option("-p", "--plot", help="if you want to show plots", dest="plot", default=False, action="store_true")
-
+option_parser.add_option("-t", "--type", dest="type", help="Choose the type of the tagger 'ner' or 'pos'", default="pos")
+option_parser.add_option("-e", "--embedding", help="If you want to use the pre trained embedding matrix", dest="E", default=False, action="store_true")
+option_parser.add_option("-f", "--fix", help="If you want to use prefix and suffix embedding matrices", dest="F", default=False, action="store_true")
+option_parser.add_option("-p", "--plot", help="If you want to show plots", dest="plot", default=False, action="store_true")
+option_parser.add_option("-l", "--lr", dest="lr", help="Choose the learning rate", default=None, type=float)
+option_parser.add_option("-i", "--iter", dest="epochs", help="Choose the epochs", default=None, type=int)
 
 class Trainer(object):
     """
@@ -59,7 +60,8 @@ class Trainer(object):
         :return: the predicted tags
         """
         # TODO D
-        d = {"LR":LR, "EPOCHS":EPOCHS, "Train params":{
+        d = {"LR":LR, "EPOCHS":EPOCHS,
+        "Train params":{
             "acc":0, "total":0, "correct":0, "loss":0
         },"Dev params":{
             "acc":0, "total":0, "correct":0, "loss":0
@@ -313,6 +315,12 @@ def routine(options):
     tags_type = options.type
     print "################### Start routine for type:", tags_type, "##########################"
     initialize_globals(tags_type)
+    if options.lr is not None:
+        global LR
+        LR = options.lr
+    if options.epochs is not None:
+        global EPOCHS
+        EPOCHS = options.epochs
     train_file, dev_file, test_file = tags_type + "/" + "train", tags_type + "/" + "dev", tags_type + "/" + "test"
     print "parameters are LR:", LR, "EPOCHS:", EPOCHS
     # Create loaders
